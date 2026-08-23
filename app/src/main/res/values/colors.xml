@@ -1,0 +1,14 @@
+<resources>
+    <color name="bg">#12151C</color>
+    <color name="surface">#1B2029</color>
+    <color name="surface2">#232935</color>
+    <color name="surface3">#2B3241</color>
+    <color name="border">#323A4A</color>
+    <color name="accent">#C9A15A</color>
+    <color name="accent_dim">#8F7443</color>
+    <color name="text">#EDEFF2</color>
+    <color name="text_muted">#8A93A3</color>
+    <color name="text_faint">#5A6474</color>
+    <color name="success">#6FA98C</color>
+    <color name="danger">#C1666B</color>
+</resources>
