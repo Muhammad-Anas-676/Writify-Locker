@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Needed to list installed apps for locking -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Needed for the accessibility service to detect foreground app -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- File vault: read files user picks to import -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <application
+        android:name=".VaultApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Writify"
+        android:theme="@style/Theme.AppLocker"
+        android:usesCleartextTraffic="false">
+
+        <!-- Entry point: PIN gate. Real code -> Dashboard. Fake code -> Writify. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="Writify">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Decoy: loads the real Writify notes app in a WebView -->
+        <activity android:name=".WritifyActivity" android:exported="false" />
+
+        <!-- Real vault dashboard: Apps tab + Files tab -->
+        <activity android:name=".DashboardActivity" android:exported="false" />
+
+        <!-- Full-screen PIN overlay shown when a locked app is opened -->
+        <activity
+            android:name=".LockOverlayActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:theme="@style/Theme.AppLocker.Overlay" />
+
+        <!-- Accessibility service: watches which app is in the foreground -->
+        <service
+            android:name=".LockAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+    </application>
+</manifest>
