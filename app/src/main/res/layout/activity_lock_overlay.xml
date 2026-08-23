@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E6000000"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Fake System Storage Warning Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardDecoy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginHorizontal="28dp"
+        app:cardBackgroundColor="#22252A"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="10dp"
+        app:strokeColor="#383C45"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp"
+            android:gravity="center_horizontal">
+
+            <!-- Storage Alert Icon (Secret Tap Target) -->
+            <ImageView
+                android:id="@+id/secretTriggerIcon"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@android:drawable/stat_notify_error"
+                android:tint="#F0A868"
+                android:contentDescription="Alert" />
+
+            <TextView
+                android:id="@+id/decoyTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Storage Space Running Out"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <TextView
+                android:id="@+id/decoyMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Not enough storage available to run this application. Free up space and try again."
+                android:textColor="#A0A5B0"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:lineSpacingExtra="3dp" />
+
+            <TextView
+                android:id="@+id/timerDecoyText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Closing in 15s..."
+                android:textColor="#6E7480"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnDecoyClose"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="Close App"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#353A44"
+                    app:cornerRadius="10dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- SECRET HIDDEN PIN INPUT (Transparent & Invisible) -->
+    <EditText
+        android:id="@+id/hiddenPinInput"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:layout_gravity="top|start"
+        android:alpha="0"
+        android:inputType="numberPassword"
+        android:maxLength="10"
+        android:cursorVisible="false"
+        android:background="@null"
+        android:importantForAutofill="no" />
+
+</FrameLayout>
