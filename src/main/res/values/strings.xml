@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Writify</string>
+    <string name="accessibility_service_description">Allows Writify to detect when a locked app is opened so it can show the unlock screen.</string>
+</resources>
