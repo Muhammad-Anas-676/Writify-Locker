@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="8dp"
+                android:text="\u2190"
+                android:textColor="@color/text"
+                android:textSize="20sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="Settings"
+                android:textColor="@color/text"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Appearance -->
+        <TextView style="@style/SettingsSectionTitle" android:text="Appearance" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="Accent color"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+        <LinearLayout
+            android:id="@+id/colorSwatchRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="20dp" />
+
+        <!-- App Icon -->
+        <TextView style="@style/SettingsSectionTitle" android:text="App Icon" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="Change how Writify appears on your home screen"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+        <RadioGroup
+            android:id="@+id/iconAliasGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="20dp" />
+
+        <!-- Security -->
+        <TextView style="@style/SettingsSectionTitle" android:text="Security" />
+        <TextView
+            android:id="@+id/changePinRow"
+            style="@style/SettingsRow"
+            android:text="Change Real / Fake PIN" />
+
+        <TextView style="@style/SettingsSectionTitle" android:text="Background Protection" />
+        <TextView
+            android:id="@+id/autostartGuideRow"
+            style="@style/SettingsRow"
+            android:layout_marginBottom="20dp"
+            android:text="Fix XOS autostart / background kill (Infinix)" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="10dp"
+            android:paddingBottom="20dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Decoy / stealth mode"
+                android:textColor="@color/text"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="0"
+                android:text="Show fake error before PIN screen"
+                android:textColor="@color/text_faint"
+                android:textSize="11sp"
+                android:visibility="gone" />
+
+            <Switch
+                android:id="@+id/decoyModeSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-14dp"
+            android:layout_marginBottom="20dp"
+            android:text="When off, a locked app goes straight to the rotary PIN screen instead of the fake storage-error card first."
+            android:textColor="@color/text_faint"
+            android:textSize="11sp" />
+
+        <!-- Auto re-lock -->
+        <TextView style="@style/SettingsSectionTitle" android:text="Auto Re-lock Timer" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="Re-ask for your PIN after the app has been in the background this long"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+        <RadioGroup
+            android:id="@+id/autoRelockGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="20dp" />
+
+        <!-- Backup & Restore -->
+        <TextView style="@style/SettingsSectionTitle" android:text="Backup &amp; Restore" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="Saves your locked-apps list and app preferences (not PINs or vault files) to a file you choose."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:id="@+id/backupButton"
+                style="@style/SettingsRow"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:gravity="center"
+                android:text="Backup" />
+
+            <TextView
+                android:id="@+id/restoreButton"
+                style="@style/SettingsRow"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:text="Restore" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
