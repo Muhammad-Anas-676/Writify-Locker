@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Permissions -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesCondition" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <application
+        android:name=".VaultApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Writify"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+
+        <!-- Main Launcher (Decoy Entry). Not exported directly and carries no intent-filter
+             of its own any more - the home-screen entry point is always one of the
+             activity-alias entries below, so the label/icon shown on the home screen can be
+             switched from Settings > App Icon without touching this activity itself. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
+
+        <!-- Icon/label disguise options for the home screen. Exactly one of these should be
+             enabled at a time - IconAliasManager takes care of enabling the chosen one and
+             disabling the others via PackageManager at runtime. All currently share the same
+             artwork (@mipmap/ic_launcher); swap in dedicated PNGs per alias later for a fuller
+             disguise. -->
+        <activity-alias
+            android:name=".alias.WritifyAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Writify">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".alias.CalculatorAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Calculator">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".alias.FileManagerAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="File Manager">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".alias.NotesAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="Notes">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Real Vault Dashboard -->
+        <activity
+            android:name=".DashboardActivity"
+            android:exported="false" />
+
+        <!-- Settings -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <!-- App picker used by the Locked Apps tab's "+" button -->
+        <activity
+            android:name=".AppPickerActivity"
+            android:exported="false" />
+
+        <!-- Realistic fake "system storage" screen opened from the decoy notification -->
+        <activity
+            android:name=".FakeStorageDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppLocker" />
+
+        <!-- Transparent, no-UI host for the BiometricPrompt fallback on the lock screen -->
+        <activity
+            android:name=".BiometricUnlockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.AppLocker.Transparent" />
+
+        <!-- Decoy Notes Webview -->
+        <activity
+            android:name=".WritifyActivity"
+            android:exported="false" />
+
+        <!-- Fallback Lock Screen Overlay Activity -->
+        <activity
+            android:name=".LockOverlayActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <!-- Accessibility App Lock Service.
+             Runs as a foreground service (with a low-key persistent notification) purely so
+             OEM battery managers (Infinix XOS in particular) stop treating it as a killable
+             background process. This is what stops the "permission turns off after 1-2 hours"
+             issue - the OS was killing the service's process, which also flips the Accessibility
+             toggle off as a side effect on some devices. -->
+        <service
+            android:name=".LockAccessibilityService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the app-lock detection service alive so locked apps stay protected" />
+        </service>
+
+        <!-- Re-arms the heartbeat + worker after reboot or an app update (both get wiped by
+             the OS at that point). Cannot re-enable Accessibility itself - only the user can
+             do that - so it also nudges them with a notification if it's still off. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Fired every ~2.5 minutes by AlarmScheduler; checks protection health and
+             re-arms the next heartbeat itself. -->
+        <receiver
+            android:name=".HeartbeatReceiver"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
