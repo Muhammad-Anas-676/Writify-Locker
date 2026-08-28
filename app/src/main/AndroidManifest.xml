@@ -25,7 +25,6 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Writify"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppLocker">
 
@@ -101,7 +100,7 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- ✅ Biometric Unlock Transparent Host (Using @style/Theme.AppLocker.Transparent) -->
+        <!-- Biometric Unlock Transparent Host -->
         <activity
             android:name=".BiometricUnlockActivity"
             android:excludeFromRecents="true"
