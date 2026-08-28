@@ -2,47 +2,48 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions -->
+    <!-- Core Permissions -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesCondition" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+
+    <!-- Query packages to display app picker -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:name=".VaultApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Writify"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+        android:theme="@style/Theme.AppLocker">
 
-        <!-- Main Launcher (Decoy Entry). Not exported directly and carries no intent-filter
-             of its own any more - the home-screen entry point is always one of the
-             activity-alias entries below, so the label/icon shown on the home screen can be
-             switched from Settings > App Icon without touching this activity itself. -->
+        <!-- Main PIN Setup / Entry Activity -->
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize" />
 
-        <!-- Icon/label disguise options for the home screen. Exactly one of these should be
-             enabled at a time - IconAliasManager takes care of enabling the chosen one and
-             disabling the others via PackageManager at runtime. All currently share the same
-             artwork (@mipmap/ic_launcher); swap in dedicated PNGs per alias later for a fuller
-             disguise. -->
+        <!-- Launcher Activity Aliases (Icon & Disguise Swapper) -->
         <activity-alias
-            android:name=".alias.WritifyAlias"
-            android:targetActivity=".MainActivity"
+            android:name="com.anas.applocker.alias.WritifyAlias"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Writify">
+            android:label="Writify"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -50,12 +51,12 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".alias.CalculatorAlias"
-            android:targetActivity=".MainActivity"
+            android:name="com.anas.applocker.alias.CalculatorAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Calculator">
+            android:label="Calculator"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -63,12 +64,12 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".alias.FileManagerAlias"
-            android:targetActivity=".MainActivity"
+            android:name="com.anas.applocker.alias.FileManagerAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="File Manager">
+            android:label="File Manager"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -76,66 +77,60 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".alias.NotesAlias"
-            android:targetActivity=".MainActivity"
+            android:name="com.anas.applocker.alias.NotesAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
-            android:label="Notes">
+            android:label="Notes"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
-        <!-- Real Vault Dashboard -->
+        <!-- Dashboard & App Lock Management -->
         <activity
             android:name=".DashboardActivity"
-            android:exported="false" />
-
-        <!-- Settings -->
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false" />
-
-        <!-- App picker used by the Locked Apps tab's "+" button -->
-        <activity
-            android:name=".AppPickerActivity"
-            android:exported="false" />
-
-        <!-- Realistic fake "system storage" screen opened from the decoy notification -->
-        <activity
-            android:name=".FakeStorageDetailActivity"
             android:exported="false"
-            android:theme="@style/Theme.AppLocker" />
+            android:windowSoftInputMode="adjustPan" />
 
-        <!-- Transparent, no-UI host for the BiometricPrompt fallback on the lock screen -->
+        <!-- Decoy Notes Webview Activity -->
+        <activity
+            android:name=".WritifyActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- ✅ Biometric Unlock Transparent Host (Using @style/Theme.AppLocker.Transparent) -->
         <activity
             android:name=".BiometricUnlockActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:launchMode="singleInstance"
             android:theme="@style/Theme.AppLocker.Transparent" />
 
-        <!-- Decoy Notes Webview -->
+        <!-- App Picker Activity -->
         <activity
-            android:name=".WritifyActivity"
+            android:name=".AppPickerActivity"
             android:exported="false" />
 
-        <!-- Fallback Lock Screen Overlay Activity -->
+        <!-- Settings Activity -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
+
+        <!-- Lock Screen Fallback Activity -->
         <activity
             android:name=".LockOverlayActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:launchMode="singleInstance"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
+            android:launchMode="singleTop" />
 
-        <!-- Accessibility App Lock Service.
-             Runs as a foreground service (with a low-key persistent notification) purely so
-             OEM battery managers (Infinix XOS in particular) stop treating it as a killable
-             background process. This is what stops the "permission turns off after 1-2 hours"
-             issue - the OS was killing the service's process, which also flips the Accessibility
-             toggle off as a side effect on some devices. -->
+        <!-- Fake Storage Decoy Activity -->
+        <activity
+            android:name=".FakeStorageDetailActivity"
+            android:exported="false" />
+
+        <!-- Lock Accessibility Service -->
         <service
             android:name=".LockAccessibilityService"
             android:exported="true"
@@ -149,12 +144,10 @@
                 android:resource="@xml/accessibility_service_config" />
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps the app-lock detection service alive so locked apps stay protected" />
+                android:value="App protection keep-alive overlay service" />
         </service>
 
-        <!-- Re-arms the heartbeat + worker after reboot or an app update (both get wiped by
-             the OS at that point). Cannot re-enable Accessibility itself - only the user can
-             do that - so it also nudges them with a notification if it's still off. -->
+        <!-- Boot Receiver for Auto Keep-Alive -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
@@ -165,8 +158,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Fired every ~2.5 minutes by AlarmScheduler; checks protection health and
-             re-arms the next heartbeat itself. -->
+        <!-- Heartbeat Receiver -->
         <receiver
             android:name=".HeartbeatReceiver"
             android:exported="false" />
