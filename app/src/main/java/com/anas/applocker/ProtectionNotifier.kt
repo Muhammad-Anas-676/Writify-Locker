@@ -54,14 +54,20 @@ object ProtectionNotifier {
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "Lets you know if app-locking protection needs to be turned back on"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 300, 200, 300)
+                    enableLights(true)
                 }
                 manager.createNotificationChannel(channel)
             }
         }
 
+        // Deliberately NOT forcing the autostart guide here (that was a bug - it skipped
+        // right past the actual problem). Opening the Dashboard plainly lets its normal
+        // checkPermissions() chain run, which will correctly show the Accessibility
+        // re-enable prompt first, since that is what's actually off right now.
         val openIntent = Intent(context, DashboardActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(DashboardActivity.EXTRA_SHOW_AUTOSTART_GUIDE, true)
         }
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -72,9 +78,11 @@ object ProtectionNotifier {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Writify protection is off")
-            .setContentText("XOS killed Writify again - tap to fix the autostart settings.")
+            .setContentText("Accessibility got switched off - tap to turn app-locking back on.")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_VIBRATE)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()

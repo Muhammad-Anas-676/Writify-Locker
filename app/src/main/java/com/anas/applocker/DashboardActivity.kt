@@ -1,6 +1,7 @@
 package com.anas.applocker
 
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -161,13 +162,45 @@ class DashboardActivity : AppCompatActivity() {
             .setTitle("One more step")
             .setMessage(
                 "To actually lock apps, Writify needs Accessibility permission. " +
-                    "This lets it notice when a locked app opens, so it can ask for your PIN."
+                    "This lets it notice when a locked app opens, so it can ask for your PIN.\n\n" +
+                    "You'll land directly on Writify's toggle - just switch it ON and press back.\n\n" +
+                    "(If the toggle looks greyed out: tap the 3-dot menu on that screen -> " +
+                    "\"Allow restricted setting\" first - Android blocks this by default for " +
+                    "apps installed outside the Play Store.)"
             )
             .setPositiveButton("Open Settings") { _, _ ->
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                openAccessibilitySettingsDirect()
             }
             .setNegativeButton("Later", null)
             .show()
+    }
+
+    /**
+     * Jumps straight to Writify's own entry inside Accessibility Settings instead of the
+     * generic list of every accessibility service on the device. Uses the documented
+     * ":settings:show_fragment_args" / ":settings:fragment_args_key" extras that AOSP's
+     * Settings app (and most OEM skins built on it) use to pre-select and scroll to a
+     * specific item. Falls back to the plain Accessibility Settings list on any device/OEM
+     * that ignores these extras, so it never leaves the user on a broken screen.
+     */
+    private fun openAccessibilitySettingsDirect() {
+        val serviceComponent = ComponentName(this, LockAccessibilityService::class.java).flattenToString()
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                putExtra(":settings:fragment_args_key", serviceComponent)
+                putExtra(
+                    ":settings:show_fragment_args",
+                    android.os.Bundle().apply {
+                        putString(":settings:fragment_args_key", serviceComponent)
+                    }
+                )
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            } catch (e2: ActivityNotFoundException) { }
+        }
     }
 
     private fun promptEnableOverlay() {
