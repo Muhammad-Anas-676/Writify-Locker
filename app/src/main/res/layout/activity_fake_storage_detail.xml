@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#F5F5F5"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/fakeStorageBackButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="\u2190"
+            android:textColor="#212121"
+            android:textSize="20sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Storage"
+            android:textColor="#212121"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/storageUsedLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="127.4 GB / 128.0 GB Used"
+            android:textColor="#212121"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/storageProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="10dp"
+            android:layout_marginTop="12dp"
+            android:progressTint="#D32F2F"
+            android:progressBackgroundTint="#E0E0E0" />
+
+        <TextView
+            android:id="@+id/storagePercentLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="99% full"
+            android:textColor="#D32F2F"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Photos &amp; videos, app data, and cached files are taking up most of your device storage. Clean up now to keep your system running smoothly."
+            android:textColor="#616161"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/cleanJunkButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:backgroundTint="#D32F2F"
+            android:text="Clean Junk Files Now"
+            android:textColor="#FFFFFF" />
+
+        <ProgressBar
+            android:id="@+id/cleanupProgressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="14dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</LinearLayout>
