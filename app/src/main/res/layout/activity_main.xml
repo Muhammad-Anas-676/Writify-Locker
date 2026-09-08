@@ -1,71 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
     android:background="@color/bg"
-    android:padding="32dp">
+    android:fillViewport="true">
 
-    <TextView
-        android:id="@+id/titleText"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Writify"
-        android:textColor="@color/text"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:id="@+id/subtitleText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Enter PIN"
-        android:textColor="@color/text_muted"
-        android:textSize="14sp"
-        android:layout_marginBottom="24dp" />
-
-    <EditText
-        android:id="@+id/pinInput"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:inputType="numberPassword"
         android:gravity="center"
-        android:textSize="22sp"
-        android:textColor="@color/text"
-        android:letterSpacing="0.3"
-        android:background="@android:color/transparent"
-        android:hint="••••" />
+        android:orientation="vertical"
+        android:padding="32dp">
 
-    <!-- Second field, only shown the very first time to set up both PINs -->
-    <EditText
-        android:id="@+id/pinInputConfirm"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:inputType="numberPassword"
-        android:gravity="center"
-        android:textSize="22sp"
-        android:textColor="@color/text"
-        android:letterSpacing="0.3"
-        android:background="@android:color/transparent"
-        android:hint="Confirm second PIN"
-        android:visibility="gone"
-        android:layout_marginTop="12dp" />
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Writify"
+            android:textColor="@color/text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/submitButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Continue"
-        android:layout_marginTop="24dp" />
+        <TextView
+            android:id="@+id/subtitleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="Enter PIN"
+            android:textColor="@color/text_muted"
+            android:textSize="14sp" />
 
-    <TextView
-        android:id="@+id/errorText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textColor="@color/danger"
-        android:textSize="13sp"
-        android:layout_marginTop="12dp" />
+        <!-- ── FIRST-RUN ONLY: credential-format selector ──
+             Hidden (gone) during normal login. Visible during first-time setup so
+             the user picks whether their real secret is an ALPHABETIC password or
+             a NUMERIC PIN. This drives the inverted-decoy keyboard on all overlays. -->
+        <TextView
+            android:id="@+id/formatLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Choose your real credential type:"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
-</LinearLayout>
+        <RadioGroup
+            android:id="@+id/credentialFormatGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <RadioButton
+                android:id="@+id/formatNumeric"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:layout_marginEnd="20dp"
+                android:text="Numeric PIN"
+                android:textColor="@color/text" />
+
+            <RadioButton
+                android:id="@+id/formatAlphabetic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Alphabetic Password"
+                android:textColor="@color/text" />
+        </RadioGroup>
+
+        <!-- Real credential input — type is set programmatically based on chosen format -->
+        <EditText
+            android:id="@+id/pinInput"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:gravity="center"
+            android:hint="••••"
+            android:inputType="numberPassword"
+            android:letterSpacing="0.3"
+            android:textColor="@color/text"
+            android:textSize="22sp" />
+
+        <!-- Second field — only visible during first-run to set up fake credential -->
+        <EditText
+            android:id="@+id/pinInputConfirm"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@android:color/transparent"
+            android:gravity="center"
+            android:hint="Confirm second credential"
+            android:inputType="numberPassword"
+            android:letterSpacing="0.3"
+            android:textColor="@color/text"
+            android:textSize="22sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/submitButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Continue" />
+
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/danger"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+</ScrollView>

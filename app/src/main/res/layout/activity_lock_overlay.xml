@@ -1,14 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared layout for two overlay modes:
+    • APP_LOCK  — fake system-storage-error card over a locked app.
+    • PROTECTION — "cannot perform this action" guard over Settings/uninstaller/Recents.
+
+  Both modes use the INVERTED DECOY mechanism:
+    • The credential input starts with the WRONG keyboard type (set programmatically).
+    • A 3-tap or long-press on the warning icon/title triggers [triggerSecretPin()],
+      which flips the keyboard to the REAL type via InputMethodManager.restartInput().
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/overlayRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0C1019"
+    android:background="#E6000000"
     android:clickable="true"
-    android:fitsSystemWindows="false"
     android:focusable="true">
 
-    <!-- FAKE SYSTEM CRASH / STORAGE WARNING CARD -->
+    <!-- ═══════════════════════════════════════════════════════════
+         DECOY CARD — fake system error shown to potential attackers.
+         Secret trigger: 3 rapid taps OR long-press on warningIcon / warningTitle.
+    ═══════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/fakeErrorCard"
         android:layout_width="match_parent"
@@ -25,7 +37,7 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- Secret Trigger Area: Long press or 3 taps here -->
+            <!-- Secret trigger area: long-press or 3 rapid taps here -->
             <ImageView
                 android:id="@+id/warningIcon"
                 android:layout_width="38dp"
@@ -48,6 +60,7 @@
                 android:textSize="18sp" />
         </LinearLayout>
 
+        <!-- Set programmatically per overlay mode -->
         <TextView
             android:id="@+id/fakeErrorMessage"
             android:layout_width="match_parent"
@@ -88,15 +101,20 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- SECRET HIDDEN PIN INPUT (Revealed only via Secret Trigger) -->
+    <!-- ═══════════════════════════════════════════════════════════
+         SECRET CREDENTIAL PANEL — revealed only via the hidden trigger.
+         inputType is set programmatically (DECOY initially; flipped to REAL on trigger).
+    ═══════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/secretPinLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:layout_marginHorizontal="28dp"
+        android:background="@android:drawable/dialog_holo_dark_frame"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="26dp"
         android:visibility="gone">
 
         <TextView
@@ -104,7 +122,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="sans-serif-medium"
             android:text="Security Verification"
-            android:textColor="#F8FAFC"
+            android:textColor="#FFFFFF"
             android:textSize="17sp" />
 
         <TextView
@@ -112,43 +130,66 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Enter master authorization code"
+            android:text="Enter authorization key"
             android:textColor="#888888"
             android:textSize="12sp" />
 
-        <com.anas.applocker.RotaryPinLockView
-            android:id="@+id/rotaryPinLock"
-            android:layout_width="280dp"
-            android:layout_height="280dp"
-            android:layout_marginTop="22dp" />
+        <!--
+          inputType is NOT set here — it is applied programmatically by the overlay controller
+          (LockAccessibilityService / LockOverlayActivity) using PinManager.getDecoyInputType(),
+          so the keyboard starts as the WRONG type and flips to the REAL type on trigger.
+        -->
+        <EditText
+            android:id="@+id/secretPinInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:background="#22FFFFFF"
+            android:gravity="center"
+            android:hint="••••"
+            android:imeOptions="actionDone"
+            android:letterSpacing="0.4"
+            android:maxLength="64"
+            android:paddingVertical="12dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:textSize="22sp" />
 
         <TextView
             android:id="@+id/secretPinError"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="8dp"
             android:textColor="#FF4D4D"
             android:textSize="12sp"
             android:visibility="invisible" />
 
-        <Button
-            android:id="@+id/btnUseBiometrics"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="Use biometrics"
-            android:textColor="#3D82F6"
-            android:visibility="gone" />
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/btnSecretCancel"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Back"
-            android:textColor="#999999" />
+            <Button
+                android:id="@+id/btnSecretCancel"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Back"
+                android:textColor="#999999" />
+
+            <Button
+                android:id="@+id/btnSecretUnlock"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:backgroundTint="#3D82F6"
+                android:text="Verify"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
 </FrameLayout>

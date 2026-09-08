@@ -2,22 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Core Permissions -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Core overlay + query permissions -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesCondition" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
 
-    <!-- Query packages to display app picker -->
-    <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <!-- Battery optimization exemption — prevents OEM killers from stopping the service -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".VaultApplication"
@@ -25,115 +21,50 @@
         android:icon="@mipmap/ic_launcher"
         android:label="Writify"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppLocker">
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
 
-        <!-- Main PIN Setup / Entry Activity -->
+        <!-- ══════════════════════════════════════════════════════════════
+             ACTIVITIES
+        ══════════════════════════════════════════════════════════════ -->
+
+        <!-- Main Launcher — decoy entry point; must stay visible in Recents so the user
+             can lock/unlock the app naturally. excludeFromRecents is intentionally absent. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:windowSoftInputMode="adjustResize" />
-
-        <!-- Launcher Activity Aliases (Icon & Disguise Swapper) -->
-        <activity-alias
-            android:name="com.anas.applocker.alias.WritifyAlias"
-            android:enabled="true"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Writify"
-            android:targetActivity=".MainActivity">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity-alias>
+        </activity>
 
-        <activity-alias
-            android:name="com.anas.applocker.alias.CalculatorAlias"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Calculator"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name="com.anas.applocker.alias.FileManagerAlias"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="File Manager"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name="com.anas.applocker.alias.NotesAlias"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher"
-            android:label="Notes"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <!-- Dashboard & App Lock Management -->
+        <!-- Real Vault Dashboard -->
         <activity
             android:name=".DashboardActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustPan" />
+            android:exported="false" />
 
-        <!-- Decoy Notes Webview Activity -->
+        <!-- Decoy Notes WebView -->
         <activity
             android:name=".WritifyActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-
-        <!-- Biometric Unlock Transparent Host -->
-        <activity
-            android:name=".BiometricUnlockActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:theme="@style/Theme.AppLocker.Transparent" />
-
-        <!-- App Picker Activity -->
-        <activity
-            android:name=".AppPickerActivity"
             android:exported="false" />
 
-        <!-- Settings Activity -->
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false" />
-
-        <!-- Lock Screen Fallback Activity -->
+        <!-- Fallback lock-screen overlay (used when service overlay is unavailable).
+             excludeFromRecents keeps it out of the Recents overview, which is correct — the
+             overlay is a transient guard, not a navigation destination. -->
         <activity
             android:name=".LockOverlayActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:launchMode="singleTop" />
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
 
-        <!-- Fake Storage Decoy Activity -->
-        <activity
-            android:name=".FakeStorageDetailActivity"
-            android:exported="false" />
-
-        <!-- Lock Accessibility Service -->
+        <!-- ══════════════════════════════════════════════════════════════
+             ACCESSIBILITY SERVICE — app-lock detection + protection overlays
+        ══════════════════════════════════════════════════════════════ -->
         <service
             android:name=".LockAccessibilityService"
             android:exported="true"
             android:foregroundServiceType="specialUse"
-            android:stopWithTask="false"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -143,24 +74,29 @@
                 android:resource="@xml/accessibility_service_config" />
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="App protection keep-alive overlay service" />
+                android:value="Keeps the app-lock detection service alive so locked apps stay protected" />
         </service>
 
-        <!-- Boot Receiver for Auto Keep-Alive -->
+        <!-- ══════════════════════════════════════════════════════════════
+             DEVICE ADMIN RECEIVER — anti-uninstall protection
+             Registering as Device Admin causes Android OS to block uninstall
+             via Settings → Apps until the user explicitly deactivates admin.
+             Our LockAccessibilityService intercepts that deactivation path
+             with the protection overlay + inverted-decoy authentication.
+        ══════════════════════════════════════════════════════════════ -->
         <receiver
-            android:name=".BootReceiver"
-            android:exported="true">
+            android:name=".AdminReceiver"
+            android:description="@string/admin_description"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_config" />
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
-
-        <!-- Heartbeat Receiver -->
-        <receiver
-            android:name=".HeartbeatReceiver"
-            android:exported="false" />
 
     </application>
 

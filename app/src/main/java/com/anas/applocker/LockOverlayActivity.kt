@@ -1,171 +1,220 @@
 package com.anas.applocker
 
+import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Activity-based fallback lock screen. Normally the AccessibilityService draws the lock
- * screen as a TYPE_ACCESSIBILITY_OVERLAY window directly, which is instant and needs no
- * activity transition - this class only gets launched as a safety net for the rare case
- * where WindowManager.addView() on that overlay throws (some OEM launchers/skins restrict
- * accessibility overlays under certain conditions). Without this fallback, that failure
- * would leave a locked app fully exposed with no lock screen at all.
+ * Fallback lock-screen overlay Activity — used in edge cases where the
+ * [LockAccessibilityService] overlay cannot be attached via WindowManager
+ * (e.g., very early in service startup).
+ *
+ * Implements the same INVERTED DECOY authentication mechanism as the service:
+ *  • The credential EditText starts with the DECOY InputType (wrong keyboard).
+ *  • A 3-tap rapid sequence OR long-press on the warning icon/title reveals
+ *    the secret credential panel (still showing the decoy keyboard).
+ *  • Inside the secret panel, the SAME gesture triggers [triggerKeyboardFlip],
+ *    which calls [InputMethodManager.restartInput] to switch to the REAL keyboard.
+ *  • Successful auth dismisses the overlay; failed auth shows an error + resets.
+ *  • Dismissing without auth sends the user back to Home.
  */
 class LockOverlayActivity : AppCompatActivity() {
 
     private lateinit var pinManager: PinManager
-    private lateinit var settingsStore: SettingsStore
     private var targetPackage: String? = null
     private val handler = Handler(Looper.getMainLooper())
 
+    private lateinit var fakeErrorCard: LinearLayout
+    private lateinit var secretPinLayout: LinearLayout
+    private lateinit var warningIcon: ImageView
+    private lateinit var warningTitle: TextView
+    private lateinit var fakeErrorMessage: TextView
+    private lateinit var secretPinInput: EditText
+    private lateinit var secretPinError: TextView
+    private lateinit var btnFakeClose: Button
+    private lateinit var btnFakeWait: Button
+    private lateinit var btnSecretCancel: Button
+    private lateinit var btnSecretUnlock: Button
+
+    private var isKeyboardFlippedToReal = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        settingsStore = SettingsStore(this)
-
-        // Same screen-leak protections as the accessibility overlay: full-bleed under
-        // cutouts/nav bar, and stealth-recents if the user has that setting on.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-        }
-        if (settingsStore.isStealthRecentsEnabled()) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        }
-        applyImmersiveFlags()
-
         setContentView(R.layout.activity_lock_overlay)
 
-        pinManager = PinManager(this)
+        pinManager    = PinManager(this)
         targetPackage = intent.getStringExtra(EXTRA_TARGET_PACKAGE)
 
-        val fakeErrorCard = findViewById<LinearLayout>(R.id.fakeErrorCard)
-        val secretPinLayout = findViewById<LinearLayout>(R.id.secretPinLayout)
-        val warningIcon = findViewById<ImageView>(R.id.warningIcon)
-        val warningTitle = findViewById<TextView>(R.id.warningTitle)
-        val fakeErrorMessage = findViewById<TextView>(R.id.fakeErrorMessage)
-        val btnFakeClose = findViewById<Button>(R.id.btnFakeClose)
-        val btnFakeWait = findViewById<Button>(R.id.btnFakeWait)
+        fakeErrorCard    = findViewById(R.id.fakeErrorCard)
+        secretPinLayout  = findViewById(R.id.secretPinLayout)
+        warningIcon      = findViewById(R.id.warningIcon)
+        warningTitle     = findViewById(R.id.warningTitle)
+        fakeErrorMessage = findViewById(R.id.fakeErrorMessage)
+        secretPinInput   = findViewById(R.id.secretPinInput)
+        secretPinError   = findViewById(R.id.secretPinError)
+        btnFakeClose     = findViewById(R.id.btnFakeClose)
+        btnFakeWait      = findViewById(R.id.btnFakeWait)
+        btnSecretCancel  = findViewById(R.id.btnSecretCancel)
+        btnSecretUnlock  = findViewById(R.id.btnSecretUnlock)
 
-        val rotaryPinLock = findViewById<RotaryPinLockView>(R.id.rotaryPinLock)
-        rotaryPinLock.hapticsSoundEnabled = settingsStore.isRotaryHapticsSoundEnabled()
-        val secretPinError = findViewById<TextView>(R.id.secretPinError)
-        val btnSecretCancel = findViewById<Button>(R.id.btnSecretCancel)
-
+        // Personalise the fake storage-error message with the locked app's label
         val appLabel = try {
             targetPackage?.let {
-                packageManager.getApplicationLabel(packageManager.getApplicationInfo(it, 0)).toString()
+                packageManager.getApplicationLabel(
+                    packageManager.getApplicationInfo(it, 0)
+                ).toString()
             } ?: "This application"
-        } catch (e: Exception) {
-            "This application"
-        }
+        } catch (_: Exception) { "This application" }
 
-        fakeErrorMessage.text = "Device storage is critically low. \"$appLabel\" failed to allocate runtime memory and was suspended to prevent system instability.\n\nPlease free up internal storage and try again."
+        fakeErrorMessage.text =
+            "Device storage is critically low. \"$appLabel\" failed to allocate runtime memory " +
+            "and was suspended to prevent system instability.\n\nPlease free up internal storage and try again."
 
-        // If the user turned decoy mode off in Settings, skip the fake-error trick entirely
-        // and go straight to the rotary PIN screen.
-        if (!settingsStore.isDecoyModeEnabled()) {
-            fakeErrorCard.visibility = View.GONE
-            secretPinLayout.visibility = View.VISIBLE
-            rotaryPinLock.reset()
-        }
-
-        val kickToHome = View.OnClickListener {
-            goToHomeScreen()
-        }
+        // Dismiss without auth → Home
+        val kickToHome = View.OnClickListener { goToHomeScreen() }
         btnFakeClose.setOnClickListener(kickToHome)
         btnFakeWait.setOnClickListener(kickToHome)
 
-        // Secret Trigger
-        var tapCount = 0
-        var lastTapTime = 0L
+        wireDecoyTrigger()
 
-        val triggerSecretPin: () -> Unit = {
-            fakeErrorCard.visibility = View.GONE
-            secretPinLayout.visibility = View.VISIBLE
-            rotaryPinLock.reset()
-        }
+        btnSecretCancel.setOnClickListener { resetToDecoyCard() }
+        btnSecretUnlock.setOnClickListener { verifyCredential() }
+    }
 
-        val secretClickListener = View.OnClickListener {
+    // ──────────────────────────────────────────────────────────────
+    // Decoy trigger wiring
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Wires the 3-tap / long-press secret trigger onto the warning icon and title.
+     * On the decoy card, the trigger opens the secret panel (with DECOY keyboard).
+     * Inside the panel, the SAME gesture calls [triggerKeyboardFlip].
+     */
+    private fun wireDecoyTrigger() {
+        var tapCount  = 0
+        var lastTapMs = 0L
+
+        val openSecretPanel = View.OnClickListener {
             val now = System.currentTimeMillis()
-            if (now - lastTapTime < 500) {
-                tapCount++
-                if (tapCount >= 3) {
-                    triggerSecretPin()
-                    tapCount = 0
-                }
-            } else {
-                tapCount = 1
-            }
-            lastTapTime = now
+            if (now - lastTapMs < 500) { tapCount++; if (tapCount >= 3) { showSecretPanel(); tapCount = 0 } }
+            else tapCount = 1
+            lastTapMs = now
         }
 
-        warningIcon.setOnClickListener(secretClickListener)
-        warningTitle.setOnClickListener(secretClickListener)
-        warningIcon.setOnLongClickListener { triggerSecretPin(); true }
-        warningTitle.setOnLongClickListener { triggerSecretPin(); true }
+        warningIcon.setOnClickListener(openSecretPanel)
+        warningTitle.setOnClickListener(openSecretPanel)
+        warningIcon.setOnLongClickListener  { showSecretPanel(); true }
+        warningTitle.setOnLongClickListener { showSecretPanel(); true }
+    }
 
-        btnSecretCancel.setOnClickListener {
-            rotaryPinLock.reset()
-            secretPinError.visibility = View.INVISIBLE
-            secretPinLayout.visibility = View.GONE
-            fakeErrorCard.visibility = View.VISIBLE
+    private fun wireFlipTrigger() {
+        var tapCount  = 0
+        var lastTapMs = 0L
+
+        val flip = View.OnClickListener {
+            val now = System.currentTimeMillis()
+            if (now - lastTapMs < 500) { tapCount++; if (tapCount >= 3) { triggerKeyboardFlip(); tapCount = 0 } }
+            else tapCount = 1
+            lastTapMs = now
         }
 
-        rotaryPinLock.onVerify = { pin ->
-            if (pinManager.isLockedOut()) false else pinManager.check(pin) == PinManager.PinResult.REAL
-        }
-        rotaryPinLock.onSuccess = {
-            secretPinError.visibility = View.INVISIBLE
+        warningIcon.setOnClickListener(flip)
+        warningTitle.setOnClickListener(flip)
+        warningIcon.setOnLongClickListener  { triggerKeyboardFlip(); true }
+        warningTitle.setOnLongClickListener { triggerKeyboardFlip(); true }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Panel transitions
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Reveals the credential input panel. Initialises the EditText with the DECOY InputType
+     * so the wrong keyboard is shown. The gesture trigger inside the panel flips it to the
+     * REAL type via [triggerKeyboardFlip].
+     */
+    private fun showSecretPanel() {
+        isKeyboardFlippedToReal = false
+
+        // Start with DECOY keyboard — inverted from the user's real credential format
+        secretPinInput.inputType = pinManager.getDecoyInputType()
+
+        fakeErrorCard.visibility   = View.GONE
+        secretPinLayout.visibility = View.VISIBLE
+        secretPinInput.requestFocus()
+
+        // Inside the panel, the same gesture now flips to the real keyboard
+        wireFlipTrigger()
+
+        handler.postDelayed({
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showSoftInput(secretPinInput, InputMethodManager.SHOW_IMPLICIT)
+        }, 100)
+    }
+
+    /**
+     * Flips the credential EditText to the REAL InputType and calls
+     * [InputMethodManager.restartInput] so the keyboard redraws immediately.
+     */
+    private fun triggerKeyboardFlip() {
+        if (isKeyboardFlippedToReal) return
+        isKeyboardFlippedToReal = true
+
+        secretPinInput.inputType = pinManager.getRealInputType()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.restartInput(secretPinInput)
+        imm?.showSoftInput(secretPinInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun resetToDecoyCard() {
+        secretPinInput.text.clear()
+        secretPinError.visibility   = View.INVISIBLE
+        secretPinLayout.visibility  = View.GONE
+        fakeErrorCard.visibility    = View.VISIBLE
+        isKeyboardFlippedToReal = false
+        wireDecoyTrigger() // restore decoy-card trigger listeners
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Auth verification
+    // ──────────────────────────────────────────────────────────────
+
+    private fun verifyCredential() {
+        val entered = secretPinInput.text.toString()
+        if (pinManager.check(entered) == PinManager.PinResult.REAL) {
             targetPackage?.let { LockAccessibilityService.unlockedPackages.add(it) }
-            pinManager.clearAttempts()
-            if (settingsStore.isAutoClearBreakInLogsEnabled()) pinManager.clearBreakInLog()
-            handler.postDelayed({ finish() }, 350)
-        }
-        rotaryPinLock.onError = {
-            if (pinManager.isLockedOut()) {
-                secretPinError.text = "Too many attempts. Try again in ${pinManager.lockoutRemainingSeconds()}s"
-            } else {
-                pinManager.recordFailedAttempt()
-                secretPinError.text = "Authorization failed"
-            }
+            finish()
+        } else {
+            pinManager.recordFailedAttempt()
+            secretPinError.text = "Authorization failed"
             secretPinError.visibility = View.VISIBLE
+            secretPinInput.text.clear()
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun applyImmersiveFlags() {
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
-    }
+    // ──────────────────────────────────────────────────────────────
+    // Navigation
+    // ──────────────────────────────────────────────────────────────
 
     private fun goToHomeScreen() {
-        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+        startActivity(Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        startActivity(homeIntent)
+        })
         finish()
     }
 
-    @Suppress("OVERRIDE_DEPRECATION", "MissingSuperCall")
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         goToHomeScreen()
     }

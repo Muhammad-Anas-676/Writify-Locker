@@ -1,4 +1,30 @@
 <resources>
+    <!-- App label -->
     <string name="app_name">Writify</string>
-    <string name="accessibility_service_description">Allows Writify to detect when a locked app is opened so it can show the unlock screen.</string>
+
+    <!-- Accessibility service description shown in Settings → Accessibility -->
+    <string name="accessibility_service_description">
+        Allows Writify to detect when a locked app is opened so it can show the unlock screen,
+        and to intercept unauthorised uninstall or device-admin removal attempts.
+    </string>
+
+    <!-- Device Admin strings ──────────────────────────────────────── -->
+
+    <!-- Shown as the Device Admin label in Settings → Security → Device Admins -->
+    <!-- (android:label on the receiver already uses @string/app_name; this is the description slot) -->
+    <string name="admin_description">
+        Writify App Locker — prevents unauthorised uninstallation of the app.
+    </string>
+
+    <!-- Shown in the system Device Admin activation dialog alongside the policy list -->
+    <string name="admin_activation_explanation">
+        Activating Device Administrator prevents Writify from being uninstalled without
+        first entering your authorisation credential. No other device policies are used.
+    </string>
+
+    <!-- Shown in the system confirmation dialog when someone tries to deactivate Device Admin -->
+    <string name="admin_disable_warning">
+        Deactivating Device Administrator will remove the uninstall protection.
+        Writify can then be removed without any authorisation credential.
+    </string>
 </resources>

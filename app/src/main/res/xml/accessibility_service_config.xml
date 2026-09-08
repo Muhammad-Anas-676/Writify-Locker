@@ -1,16 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Ultra-lightweight config (Android Go / 1GB-2GB RAM friendly):
-    - Only typeWindowStateChanged: the OS does NOT need to walk the view hierarchy for
-      any other event type, which is what keeps CPU usage at ~0% at rest.
-    - canRetrieveWindowContent=false + no flagRetrieveInteractiveWindows: we never inspect
-      node content, only the package name of the event, so none of that overhead is paid.
-    - feedbackGeneric + notificationTimeout=0: no debounce delay, no accessibility-feedback
-      processing cost.
+  Accessibility service configuration for LockAccessibilityService.
+
+  Event types:
+    typeWindowStateChanged  — foreground app / activity changes → app-lock detection
+    typeWindowsChanged      — window addition/removal events → recents task-swipe detection (API 28+)
+    typeWindowContentChanged — needed by some OEMs to reliably receive the above events
+
+  Flags:
+    flagRetrieveInteractiveWindows — lets the service inspect the z-order of all windows,
+      needed to correctly detect SystemUI Recents overlapping our task.
+    flagIncludeNotImportantViews   — ensures system dialogs (uninstall confirmations, etc.)
+      are not filtered out of the event stream.
+
+  canRetrieveWindowContent="false" — window content retrieval is intentionally disabled to
+    minimise the service's declared capabilities. Settings-screen detection uses class-name
+    keywords from AccessibilityEvent.className instead of node scanning.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="false"
-    android:description="@string/app_name"
-    android:notificationTimeout="100" />
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="0" />

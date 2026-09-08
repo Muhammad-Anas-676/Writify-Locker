@@ -1,5 +1,6 @@
 package com.anas.applocker
 
+import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
@@ -19,23 +20,19 @@ import java.util.Locale
 
 class DashboardActivity : AppCompatActivity() {
 
+    private lateinit var dpm: DevicePolicyManager
+    private lateinit var adminComponent: ComponentName
+
     companion object {
-        /** Set by ProtectionNotifier's notification tap so the guide pops up immediately
-         *  instead of waiting behind the rest of the permission chain. */
-        const val EXTRA_SHOW_AUTOSTART_GUIDE = "show_autostart_guide"
+        private const val KEY_AUTOSTART_GUIDE_SHOWN = "autostart_guide_shown"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Stealth recents protection (Settings toggle): hides the vault dashboard's real
-        // content from the Recents/App-switcher thumbnail and from screenshots.
-        if (SettingsStore(this).isStealthRecentsEnabled()) {
-            window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE
-            )
-        }
         setContentView(R.layout.activity_dashboard)
+
+        dpm            = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        adminComponent = ComponentName(this, AdminReceiver::class.java)
 
         showFragment(AppsListFragment())
 
@@ -55,18 +52,7 @@ class DashboardActivity : AppCompatActivity() {
             showBreakInLog()
         }
 
-        findViewById<android.widget.ImageView>(R.id.settingsButton).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-
-        ThemeManager.applyToTabLayout(this, tabLayout)
-        ThemeManager.applyToTextView(this, findViewById(R.id.breakInLogButton))
-
-        if (intent.getBooleanExtra(EXTRA_SHOW_AUTOSTART_GUIDE, false)) {
-            showAutostartGuide()
-        } else {
-            checkPermissions()
-        }
+        checkPermissions()
     }
 
     override fun onResume() {
@@ -79,13 +65,9 @@ class DashboardActivity : AppCompatActivity() {
             return
         }
 
-        // Re-check every time the user comes back from Settings, so the
-        // prompts don't nag once permissions are actually granted.
+        // Re-check every time the user comes back from Settings so prompts
+        // don't nag once permissions are actually granted.
         checkPermissions()
-
-        // Accent color may have just been changed in the Settings screen.
-        ThemeManager.applyToTabLayout(this, findViewById(R.id.tabLayout))
-        ThemeManager.applyToTextView(this, findViewById(R.id.breakInLogButton))
     }
 
     private fun showFragment(fragment: Fragment) {
@@ -94,89 +76,71 @@ class DashboardActivity : AppCompatActivity() {
             .commit()
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // Permission / protection check chain
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Walks through all required permissions in priority order.
+     * Each prompt is shown once per check; the next call (after the user returns from Settings)
+     * advances to the next unsatisfied requirement.
+     *
+     * Order:
+     *   1. Accessibility Service     — core app-locking engine
+     *   2. Overlay ("draw over apps") — zero-flash instant overlay
+     *   3. Battery optimization exempt — prevents OEM process killers
+     *   4. Device Admin              — OS-level uninstall block (NEW)
+     *   5. Autostart guide           — one-time manual step for Infinix/XOS
+     */
     private fun checkPermissions() {
-        if (!isAccessibilityServiceEnabled()) {
-            promptEnableAccessibility()
-        } else if (!isOverlayPermissionGranted()) {
-            promptEnableOverlay()
-        } else if (!isBatteryOptimizationExempt()) {
-            promptDisableBatteryOptimization()
-        } else if (!SettingsStore(this).isAutostartConfirmed()) {
-            showAutostartGuide()
+        when {
+            !isAccessibilityServiceEnabled()  -> promptEnableAccessibility()
+            !isOverlayPermissionGranted()     -> promptEnableOverlay()
+            !isBatteryOptimizationExempt()    -> promptDisableBatteryOptimization()
+            !isDeviceAdminActive()            -> promptActivateDeviceAdmin()
+            else                              -> maybeShowAutostartGuide()
         }
     }
 
-    /**
-     * If Android is still allowed to "optimize" (i.e. freeze/kill) this app in the background,
-     * the accessibility service's process can get killed after the device has been idle a
-     * while - which on some phones also silently flips the Accessibility toggle off. Exempting
-     * the app fixes most of this.
-     */
-    private fun isBatteryOptimizationExempt(): Boolean {
-        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        return powerManager.isIgnoringBatteryOptimizations(packageName)
-    }
+    // ── Checkers ──────────────────────────────────────────────────
 
-    /** App-lock detection only fires once the user has manually enabled our Accessibility Service. */
     private fun isAccessibilityServiceEnabled(): Boolean {
-        val enabledServices = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        val enabled = Settings.Secure.getString(
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
-        return enabledServices.contains(packageName)
+        return enabled.contains(packageName)
     }
 
-    /** Needed so the lock screen can be drawn instantly, with no flash of the locked app. */
-    private fun isOverlayPermissionGranted(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else true
-    }
+    private fun isOverlayPermissionGranted(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this)
+        else true
+
+    private fun isBatteryOptimizationExempt(): Boolean =
+        (getSystemService(POWER_SERVICE) as PowerManager)
+            .isIgnoringBatteryOptimizations(packageName)
+
+    /**
+     * Returns true when this app is an active Device Admin.
+     * While active, Android OS natively blocks uninstallation via Settings → Apps.
+     * The user must explicitly deactivate admin first — our [LockAccessibilityService]
+     * intercepts that navigation path with the protection overlay.
+     */
+    private fun isDeviceAdminActive(): Boolean = dpm.isAdminActive(adminComponent)
+
+    // ── Prompts ───────────────────────────────────────────────────
 
     private fun promptEnableAccessibility() {
         AlertDialog.Builder(this)
             .setTitle("One more step")
             .setMessage(
                 "To actually lock apps, Writify needs Accessibility permission. " +
-                    "This lets it notice when a locked app opens, so it can ask for your PIN.\n\n" +
-                    "You'll land directly on Writify's toggle - just switch it ON and press back.\n\n" +
-                    "(If the toggle looks greyed out: tap the 3-dot menu on that screen -> " +
-                    "\"Allow restricted setting\" first - Android blocks this by default for " +
-                    "apps installed outside the Play Store.)"
+                "This lets it notice when a locked app opens, so it can ask for your PIN."
             )
             .setPositiveButton("Open Settings") { _, _ ->
-                openAccessibilitySettingsDirect()
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
             .setNegativeButton("Later", null)
             .show()
-    }
-
-    /**
-     * Jumps straight to Writify's own entry inside Accessibility Settings instead of the
-     * generic list of every accessibility service on the device. Uses the documented
-     * ":settings:show_fragment_args" / ":settings:fragment_args_key" extras that AOSP's
-     * Settings app (and most OEM skins built on it) use to pre-select and scroll to a
-     * specific item. Falls back to the plain Accessibility Settings list on any device/OEM
-     * that ignores these extras, so it never leaves the user on a broken screen.
-     */
-    private fun openAccessibilitySettingsDirect() {
-        val serviceComponent = ComponentName(this, LockAccessibilityService::class.java).flattenToString()
-        try {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                putExtra(":settings:fragment_args_key", serviceComponent)
-                putExtra(
-                    ":settings:show_fragment_args",
-                    android.os.Bundle().apply {
-                        putString(":settings:fragment_args_key", serviceComponent)
-                    }
-                )
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            try {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            } catch (e2: ActivityNotFoundException) { }
-        }
     }
 
     private fun promptEnableOverlay() {
@@ -184,14 +148,15 @@ class DashboardActivity : AppCompatActivity() {
             .setTitle("One more step")
             .setMessage(
                 "Writify also needs \"Display over other apps\" permission. Without it, " +
-                    "a locked app can briefly flash on screen before the PIN prompt appears."
+                "a locked app can briefly flash on screen before the PIN prompt appears."
             )
             .setPositiveButton("Open Settings") { _, _ ->
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
                 )
-                startActivity(intent)
             }
             .setNegativeButton("Later", null)
             .show()
@@ -202,17 +167,18 @@ class DashboardActivity : AppCompatActivity() {
             .setTitle("One more step")
             .setMessage(
                 "Android is still allowed to freeze Writify in the background to save battery. " +
-                    "This is the main reason the lock service can stop working after an hour or two. " +
-                    "Allow Writify to run unrestricted in the background."
+                "This is the main reason the lock service can stop working after an hour or two. " +
+                "Allow Writify to run unrestricted in the background."
             )
             .setPositiveButton("Allow") { _, _ ->
                 try {
-                    val intent = Intent(
-                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                        Uri.parse("package:$packageName")
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:$packageName")
+                        )
                     )
-                    startActivity(intent)
-                } catch (e: ActivityNotFoundException) {
+                } catch (_: ActivityNotFoundException) {
                     startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                 }
             }
@@ -220,27 +186,125 @@ class DashboardActivity : AppCompatActivity() {
             .show()
     }
 
-    /** See AutostartGuideHelper for why this can't be a simple enforced permission check. */
-    private fun showAutostartGuide() {
-        AutostartGuideHelper.show(this)
+    /**
+     * Prompts the user to activate Device Admin for this app.
+     *
+     * Once active, Android will refuse to uninstall Writify through the normal
+     * Settings → Apps → Uninstall flow. The user would first have to go to
+     * Settings → Security → Device Admins → Writify → Deactivate, and our
+     * [LockAccessibilityService] intercepts that screen with the protection overlay
+     * so the action still requires the real authorization credential.
+     */
+    private fun promptActivateDeviceAdmin() {
+        AlertDialog.Builder(this)
+            .setTitle("Enable Anti-Uninstall Protection")
+            .setMessage(
+                "Activate Writify as a Device Administrator to prevent unauthorized removal.\n\n" +
+                "While active, Android's own uninstall system will block attempts to uninstall " +
+                "the app without your authorization credential."
+            )
+            .setPositiveButton("Activate") { _, _ ->
+                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                    putExtra(
+                        DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        getString(R.string.admin_activation_explanation)
+                    )
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
+    /**
+     * One-time manual guide for Infinix / XOS devices, which have a proprietary
+     * Auto-Start manager that can independently kill background services regardless
+     * of the standard Android battery-optimization setting. No public API exists to
+     * read or set this toggle programmatically, so this is shown as a guide only.
+     */
+    private fun maybeShowAutostartGuide() {
+        val prefs = getSharedPreferences("onboarding", MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_AUTOSTART_GUIDE_SHOWN, false)) return
+
+        AlertDialog.Builder(this)
+            .setTitle("Last step (Infinix / XOS devices)")
+            .setMessage(
+                "For the lock to never switch off, also open your phone's battery settings and " +
+                "set Writify to launch automatically and run in the background:\n\n" +
+                "Settings → Battery → App launch (or App management → Autostart) → find Writify " +
+                "→ turn OFF \"Manage automatically\" → enable Auto-launch, Secondary launch, " +
+                "and Run in background.\n\n" +
+                "This is a one-time manual step - the system doesn't let apps set this for themselves."
+            )
+            .setPositiveButton("Open settings") { _, _ ->
+                openAutostartSettings()
+                prefs.edit().putBoolean(KEY_AUTOSTART_GUIDE_SHOWN, true).apply()
+            }
+            .setNegativeButton("Got it") { _, _ ->
+                prefs.edit().putBoolean(KEY_AUTOSTART_GUIDE_SHOWN, true).apply()
+            }
+            .show()
+    }
+
+    /** Best-effort: tries known Infinix/XOS autostart screens, falls back to App Info. */
+    private fun openAutostartSettings() {
+        val candidates = listOf(
+            ComponentName(
+                "com.transsion.phonemanager",
+                "com.transsion.phonemanager.module.appmanager.autostart.AutoStartActivity"
+            ),
+            ComponentName(
+                "com.transsion.phonemanager",
+                "com.itel.autobootmanage.AutoBootManageActivity"
+            ),
+            ComponentName(
+                "com.transsion.batterymanager",
+                "com.transsion.batterymanager.ui.activity.AppSelectDetailActivity"
+            ),
+        )
+
+        for (component in candidates) {
+            try {
+                startActivity(Intent().apply {
+                    this.component = component
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+                return
+            } catch (_: Exception) { /* try next */ }
+        }
+
+        // Fallback: plain App Info, from where the user can still reach battery settings
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        } catch (_: Exception) { }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Break-in log
+    // ──────────────────────────────────────────────────────────────
+
     private fun showBreakInLog() {
-        val pinManager = PinManager(this)
-        val log = pinManager.getBreakInLog()
+        val pm  = PinManager(this)
+        val log = pm.getBreakInLog()
 
         val message = if (log.isEmpty()) {
-            "No failed PIN attempts recorded."
+            "No failed authorization attempts recorded."
         } else {
-            val formatter = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-            log.joinToString("\n") { formatter.format(Date(it)) }
+            val fmt = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+            log.joinToString("\n") { fmt.format(Date(it)) }
         }
 
         AlertDialog.Builder(this)
             .setTitle("Break-in Log")
             .setMessage(message)
             .setPositiveButton("Close", null)
-            .setNegativeButton("Clear Log") { _, _ -> pinManager.clearBreakInLog() }
+            .setNegativeButton("Clear Log") { _, _ -> pm.clearBreakInLog() }
             .show()
     }
 }

@@ -2,125 +2,116 @@ package com.anas.applocker
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.RadioGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var pinManager: PinManager
-    private lateinit var settingsStore: SettingsStore
     private lateinit var pinInput: EditText
     private lateinit var pinConfirm: EditText
     private lateinit var subtitle: TextView
     private lateinit var error: TextView
     private lateinit var submit: Button
+    private lateinit var credentialFormatGroup: RadioGroup
+    private lateinit var formatLabel: TextView
 
-    /** True while the user is doing first-time setup of the PINs. */
     private var isFirstRunSetup = false
-
-    /** Ensures the auto biometric prompt only launches once per activity instance -
-     *  if the user cancels it, the PIN screen underneath is the fallback for the rest
-     *  of this visit, rather than the prompt re-appearing on every resume. */
-    private var biometricAutoAttempted = false
+    private var selectedFormat = PinManager.CredentialFormat.NUMERIC
 
     private val lockoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val lockoutTicker = object : Runnable {
         override fun run() {
             updateLockoutUi()
-            if (pinManager.isLockedOut()) {
-                lockoutHandler.postDelayed(this, 1000)
-            }
+            if (pinManager.isLockedOut()) lockoutHandler.postDelayed(this, 1000)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        settingsStore = SettingsStore(this)
-        if (settingsStore.isStealthRecentsEnabled()) {
-            window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_SECURE,
-                android.view.WindowManager.LayoutParams.FLAG_SECURE
-            )
-        }
         setContentView(R.layout.activity_main)
 
         pinManager = PinManager(this)
-        pinInput = findViewById(R.id.pinInput)
-        pinConfirm = findViewById(R.id.pinInputConfirm)
-        subtitle = findViewById(R.id.subtitleText)
-        error = findViewById(R.id.errorText)
-        submit = findViewById(R.id.submitButton)
+        pinInput             = findViewById(R.id.pinInput)
+        pinConfirm           = findViewById(R.id.pinInputConfirm)
+        subtitle             = findViewById(R.id.subtitleText)
+        error                = findViewById(R.id.errorText)
+        submit               = findViewById(R.id.submitButton)
+        credentialFormatGroup = findViewById(R.id.credentialFormatGroup)
+        formatLabel          = findViewById(R.id.formatLabel)
 
         isFirstRunSetup = !pinManager.isSetupDone()
 
         if (isFirstRunSetup) {
-            subtitle.text = "First time setup — choose your REAL vault PIN"
-            pinInput.hint = "Real PIN"
-            pinConfirm.hint = "Fake PIN (opens Writify)"
-            pinConfirm.visibility = android.view.View.VISIBLE
+            // ── First-time setup UI ──
+            subtitle.text = "First time setup — choose your REAL vault credential"
+            pinInput.hint = "Real credential"
+            pinConfirm.hint = "Fake credential (opens Writify decoy)"
+            pinConfirm.visibility = View.VISIBLE
+            credentialFormatGroup.visibility = View.VISIBLE
+            formatLabel.visibility = View.VISIBLE
+
+            // Default: NUMERIC
+            applyFormatToInputs(PinManager.CredentialFormat.NUMERIC)
+
+            credentialFormatGroup.setOnCheckedChangeListener { _, checkedId ->
+                selectedFormat = when (checkedId) {
+                    R.id.formatAlphabetic -> PinManager.CredentialFormat.ALPHABETIC
+                    else                  -> PinManager.CredentialFormat.NUMERIC
+                }
+                applyFormatToInputs(selectedFormat)
+            }
+        } else {
+            // ── Normal login: use the real input type (not decoy — this is the vault owner's screen) ──
+            pinInput.inputType = pinManager.getRealInputType()
+            if (pinManager.isLockedOut()) lockoutTicker.run()
         }
 
         submit.setOnClickListener { onSubmit() }
-
-        if (!isFirstRunSetup && pinManager.isLockedOut()) {
-            lockoutTicker.run()
-        }
-
-        // Auto-detect fingerprint the instant the vault entry screen opens - if biometrics
-        // are enabled and enrolled, the user shouldn't have to tap anything before placing
-        // their finger on the sensor. Skipped entirely during first-run setup and while
-        // locked out from too many failed PIN attempts.
-        if (!isFirstRunSetup && !pinManager.isLockedOut()) {
-            attemptAutoBiometricUnlock()
-        }
-    }
-
-    private fun attemptAutoBiometricUnlock() {
-        if (biometricAutoAttempted) return
-        if (!settingsStore.isBiometricFallbackEnabled()) return
-        val authenticators = BiometricUnlockActivity.resolveAvailableAuthenticators(this) ?: return
-        biometricAutoAttempted = true
-
-        try {
-            val executor = ContextCompat.getMainExecutor(this)
-            val prompt = BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    pinManager.clearAttempts()
-                    openDashboard()
-                }
-
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    // Cancelled or failed too many times - the PIN screen is already
-                    // visible underneath, so there's nothing else to do here.
-                }
-
-                override fun onAuthenticationFailed() {
-                    // Keep the prompt open for another attempt.
-                }
-            })
-
-            val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Unlock Writify")
-                .setSubtitle("Confirm your identity to open your vault")
-                .setAllowedAuthenticators(authenticators)
-                .setNegativeButtonText("Use PIN instead")
-                .build()
-
-            prompt.authenticate(promptInfo)
-        } catch (e: Exception) {
-            // Broken/partial biometric HAL on some OEM builds - fall back to PIN silently.
-        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         lockoutHandler.removeCallbacks(lockoutTicker)
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // Format helpers
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Updates both credential fields to the correct InputType for the chosen format.
+     * The login overlay uses the OPPOSITE (decoy) type; this screen uses the real type
+     * so the vault owner can type their credential comfortably.
+     */
+    private fun applyFormatToInputs(format: PinManager.CredentialFormat) {
+        val realInputType = when (format) {
+            PinManager.CredentialFormat.ALPHABETIC ->
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            PinManager.CredentialFormat.NUMERIC ->
+                InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        }
+        val currentReal    = pinInput.text
+        val currentFake    = pinConfirm.text
+        pinInput.inputType   = realInputType
+        pinConfirm.inputType = realInputType
+        // Restore text after inputType change (which clears the field on some versions)
+        pinInput.text   = currentReal
+        pinConfirm.text = currentFake
+
+        pinInput.hint   = if (format == PinManager.CredentialFormat.ALPHABETIC) "Password" else "PIN"
+        pinConfirm.hint = if (format == PinManager.CredentialFormat.ALPHABETIC) "Fake password" else "Fake PIN"
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Login / setup logic
+    // ──────────────────────────────────────────────────────────────
 
     private fun updateLockoutUi() {
         val remaining = pinManager.lockoutRemainingSeconds()
@@ -141,16 +132,17 @@ class MainActivity : AppCompatActivity() {
 
         if (isFirstRunSetup) {
             val fake = pinConfirm.text.toString()
+            val minLen = if (selectedFormat == PinManager.CredentialFormat.NUMERIC) 4 else 6
 
-            if (entered.length < 4 || fake.length < 4) {
-                error.text = "Real and fake PIN need at least 4 digits"
+            if (entered.length < minLen || fake.length < minLen) {
+                error.text = "Both credentials need at least $minLen characters"
                 return
             }
             if (entered == fake) {
-                error.text = "Real and fake PIN must be different"
+                error.text = "Real and fake credentials must be different"
                 return
             }
-            pinManager.setupPins(realPin = entered, fakePin = fake)
+            pinManager.setupCredentials(entered, fake, selectedFormat)
             openDashboard()
             return
         }
@@ -158,11 +150,7 @@ class MainActivity : AppCompatActivity() {
         when (pinManager.check(entered)) {
             PinManager.PinResult.REAL -> {
                 pinManager.clearAttempts()
-                if (pinManager.shouldRemindPinChange()) {
-                    showPinChangeReminder()
-                } else {
-                    openDashboard()
-                }
+                if (pinManager.shouldRemindPinChange()) showPinChangeReminder() else openDashboard()
             }
             PinManager.PinResult.FAKE -> {
                 pinManager.clearAttempts()
@@ -170,11 +158,8 @@ class MainActivity : AppCompatActivity() {
             }
             PinManager.PinResult.NONE -> {
                 pinManager.recordFailedAttempt()
-                if (pinManager.isLockedOut()) {
-                    lockoutTicker.run()
-                } else {
-                    error.text = "Incorrect PIN"
-                }
+                if (pinManager.isLockedOut()) lockoutTicker.run()
+                else error.text = "Incorrect credential"
             }
         }
         pinInput.text.clear()
@@ -182,8 +167,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPinChangeReminder() {
         AlertDialog.Builder(this)
-            .setTitle("PIN change reminder")
-            .setMessage("It's been a while since you last changed your PIN. Consider updating it from the dashboard for better security.")
+            .setTitle("Credential change reminder")
+            .setMessage("It's been a while since you last changed your vault credential. Consider updating it from the dashboard for better security.")
             .setPositiveButton("Continue") { _, _ ->
                 pinManager.dismissPinChangeReminderForNow()
                 openDashboard()

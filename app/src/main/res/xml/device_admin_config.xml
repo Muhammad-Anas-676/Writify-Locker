@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device Admin policy declaration.
+  No special DPM policies are listed — registering as Device Admin alone is enough for Android OS
+  to block uninstallation through the normal Settings → Apps path. Additional policies (lock screen,
+  wipe, etc.) are intentionally omitted to keep the app's declared capabilities minimal.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

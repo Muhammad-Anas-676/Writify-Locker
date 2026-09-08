@@ -17,13 +17,6 @@ class VaultApplication : Application(), DefaultLifecycleObserver {
     override fun onCreate() {
         super<Application>.onCreate()
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-
-        // Re-assert the keep-alive layers every time the app process starts, not just when
-        // the Accessibility Service connects - covers the case where the service died and
-        // only the app itself got woken back up (e.g. by the boot receiver or the worker).
-        AlarmScheduler.scheduleHeartbeat(this)
-        KeepAliveWorker.schedulePeriodic(this)
-        IconAliasManager.applyStoredAlias(this)
     }
 
     override fun onStop(owner: LifecycleOwner) {
@@ -34,8 +27,7 @@ class VaultApplication : Application(), DefaultLifecycleObserver {
         val bgTime = backgroundedAt
         if (bgTime != null) {
             val elapsedSeconds = (System.currentTimeMillis() - bgTime) / 1000
-            val configuredSeconds = SettingsStore(this).getAutoRelockSeconds()
-            if (elapsedSeconds >= configuredSeconds) {
+            if (elapsedSeconds >= AUTO_RELOCK_SECONDS) {
                 needsReauth = true
             }
         }
@@ -43,7 +35,6 @@ class VaultApplication : Application(), DefaultLifecycleObserver {
     }
 
     companion object {
-        /** Default, used only until the user picks something else in Settings. */
         const val AUTO_RELOCK_SECONDS = 15L
 
         private var backgroundedAt: Long? = null
