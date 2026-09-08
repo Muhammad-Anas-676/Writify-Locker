@@ -52,6 +52,10 @@ class DashboardActivity : AppCompatActivity() {
             showBreakInLog()
         }
 
+        findViewById<TextView>(R.id.settingsButton).setOnClickListener {
+            showSettingsMenu()
+        }
+
         checkPermissions()
     }
 
@@ -283,6 +287,205 @@ class DashboardActivity : AppCompatActivity() {
                 )
             )
         } catch (_: Exception) { }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Settings menu
+    // ──────────────────────────────────────────────────────────────
+
+    private fun showSettingsMenu() {
+        val pm     = PinManager(this)
+        val format = pm.getCredentialFormat()
+        val formatLabel = if (format == PinManager.CredentialFormat.ALPHABETIC) "Alphabetic Password" else "Numeric PIN"
+        val adminStatus = if (isDeviceAdminActive()) "✓ Active" else "✗ Inactive"
+
+        val options = arrayOf(
+            "🔑  Change Credential",
+            "🛡  Device Admin — $adminStatus",
+            "ℹ  About"
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle("Settings")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startChangeCredentialFlow(pm)
+                    1 -> showDeviceAdminSettings()
+                    2 -> showAbout(formatLabel)
+                }
+            }
+            .show()
+    }
+
+    // ── Change Credential ─────────────────────────────────────────
+
+    /**
+     * 3-step flow:
+     *   Step 1 — verify current real credential
+     *   Step 2 — choose new format
+     *   Step 3 — enter new real + fake credential
+     */
+    private fun startChangeCredentialFlow(pm: PinManager) {
+        val layout  = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(60, 32, 60, 8)
+        }
+        val currentInput = android.widget.EditText(this).apply {
+            inputType = pm.getRealInputType()
+            hint = "Current credential"
+        }
+        layout.addView(currentInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("Verify Identity")
+            .setMessage("Enter your current real credential to continue.")
+            .setView(layout)
+            .setPositiveButton("Verify") { _, _ ->
+                if (pm.check(currentInput.text.toString()) == PinManager.PinResult.REAL) {
+                    showNewCredentialDialog(pm)
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle("Incorrect")
+                        .setMessage("Current credential did not match. Credential not changed.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showNewCredentialDialog(pm: PinManager) {
+        // Format picker + new real + new fake
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(60, 16, 60, 8)
+        }
+
+        // Format radio group
+        val formatGroup = android.widget.RadioGroup(this).apply {
+            orientation = android.widget.RadioGroup.HORIZONTAL
+        }
+        val btnNumeric = android.widget.RadioButton(this).apply {
+            text = "Numeric PIN"
+            id  = android.view.View.generateViewId()
+            isChecked = pm.getCredentialFormat() == PinManager.CredentialFormat.NUMERIC
+        }
+        val btnAlpha = android.widget.RadioButton(this).apply {
+            text = "Alphabetic Password"
+            id  = android.view.View.generateViewId()
+            isChecked = pm.getCredentialFormat() == PinManager.CredentialFormat.ALPHABETIC
+        }
+        formatGroup.addView(btnNumeric)
+        formatGroup.addView(btnAlpha)
+        layout.addView(formatGroup)
+
+        // Credential inputs
+        val realInput = android.widget.EditText(this).apply {
+            inputType = pm.getRealInputType()
+            hint = "New real credential"
+        }
+        val fakeInput = android.widget.EditText(this).apply {
+            inputType = pm.getRealInputType()
+            hint = "New fake credential"
+        }
+        layout.addView(realInput)
+        layout.addView(fakeInput)
+
+        // Update input type when format changes
+        formatGroup.setOnCheckedChangeListener { _, checkedId ->
+            val newType = if (checkedId == btnAlpha.id) {
+                android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            } else {
+                android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            }
+            realInput.inputType = newType
+            fakeInput.inputType = newType
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Set New Credential")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                val newReal = realInput.text.toString()
+                val newFake = fakeInput.text.toString()
+                val selectedFormat = if (btnAlpha.isChecked)
+                    PinManager.CredentialFormat.ALPHABETIC
+                else
+                    PinManager.CredentialFormat.NUMERIC
+                val minLen = if (selectedFormat == PinManager.CredentialFormat.ALPHABETIC) 6 else 4
+
+                when {
+                    newReal.length < minLen || newFake.length < minLen ->
+                        showToast("Both credentials need at least $minLen characters")
+                    newReal == newFake ->
+                        showToast("Real and fake credentials must be different")
+                    else -> {
+                        pm.setupCredentials(newReal, newFake, selectedFormat)
+                        AlertDialog.Builder(this)
+                            .setTitle("Done")
+                            .setMessage("Credential updated successfully.")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ── Device Admin settings ─────────────────────────────────────
+
+    private fun showDeviceAdminSettings() {
+        val isActive = isDeviceAdminActive()
+        val status   = if (isActive) "✓ Active — uninstall is blocked by Android OS" else "✗ Inactive — uninstall is NOT protected"
+        val btnLabel = if (isActive) "Deactivate" else "Activate"
+
+        AlertDialog.Builder(this)
+            .setTitle("Device Admin Protection")
+            .setMessage(
+                "$status\n\n" +
+                "While active, Android refuses to uninstall Writify through the normal " +
+                "Settings → Apps flow. Deactivation requires passing the protection overlay."
+            )
+            .setPositiveButton(btnLabel) { _, _ ->
+                if (isActive) {
+                    // Takes user to the system Device Admin management screen
+                    val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                        // Opening device admin settings page for this component
+                    }
+                    startActivity(
+                        Intent(Settings.ACTION_SECURITY_SETTINGS)
+                    )
+                } else {
+                    promptActivateDeviceAdmin()
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    // ── About ─────────────────────────────────────────────────────
+
+    private fun showAbout(formatLabel: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Writify App Locker")
+            .setMessage(
+                "Version: v4.2 Refactored\n\n" +
+                "Credential type: $formatLabel\n\n" +
+                "Protection layers:\n" +
+                "  • Accessibility service app-lock\n" +
+                "  • Inverted-decoy overlay authentication\n" +
+                "  • Settings & uninstaller interception\n" +
+                "  • Device Admin uninstall block\n" +
+                "  • Battery optimization exemption"
+            )
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    private fun showToast(msg: String) {
+        android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     // ──────────────────────────────────────────────────────────────
